@@ -86,13 +86,14 @@ Clone the repository and install the dependencies:
 git clone [https://github.com/YourUsername/Touchless-HCI-Hand-Tracker.git](https://github.com/YourUsername/Touchless-HCI-Hand-Tracker.git)
 cd Touchless-HCI-Hand-Tracker
 pip install -r requirements.txt`
-
+```
 *(Ensure `onnx`, `onnxruntime`, `fastapi`, `uvicorn`, `python-multipart`, and `ultralytics` are installed).*
 
 ### 2. Run the Live API Server
 Launch the FastAPI backend locally:
 ```bash
 uvicorn api:app --reload
+```
 
 ### 3. Access the Interface
 Open your browser and navigate to:
