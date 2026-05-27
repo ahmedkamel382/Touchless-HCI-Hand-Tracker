@@ -1,0 +1,18 @@
+# Python Environments & Cache
+venv/
+env/
+__pycache__/
+*.pyc
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Ignore all massive compressed archives
+*.zip
+*.rar
+
+# Ignore large image dataset folders
+test/
+test_annotated/
+data/
