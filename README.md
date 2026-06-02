@@ -1,7 +1,7 @@
 # Touchless HCI: Real-Time Hand Tracking using YOLO
 
 ## 🎯 Project Overview
-This project implements a robust, real-time hand-tracking pipeline designed as the foundational computer vision layer for a Touchless Human-Computer Interaction (HCI) mouse system. The objective is to accurately detect and track human hands in varying environments, lighting conditions, and complex gestures (such as closed fists and pointing) using consumer-grade edge hardware.
+This project implements a robust, real-time hand-tracking pipeline designed as the foundational computer vision layer for a Touchless Human-Computer Interaction (HCI) system. The objective is to accurately detect and track human hands in varying environments, lighting conditions, and complex gestures (such as closed fists and pointing) using consumer-grade edge hardware.
 
 By implementing advanced dataset engineering, cloud-based GPU training, and local ONNX graph fusion, this system achieves a high-precision, low-latency deployment capable of running on standard CPUs without dropping frames.
 
@@ -28,7 +28,7 @@ The model was trained iteratively across multiple versions using an **NVIDIA Tes
 * **Training Metrics:** The model successfully converged at 100 epochs, achieving a **95.7% mAP50** and **95.1% Precision**.
 
 **Training Convergence & Loss:**
-![Training Results](v3_results/results.jpg)
+![Training Results](v3_results/results.png)
 
 **Model Precision-Recall & Confusion Matrix:**
 <p align="center">
@@ -39,7 +39,7 @@ The model was trained iteratively across multiple versions using an **NVIDIA Tes
 ---
 
 ## ⚡ Edge Hardware Optimization (Local Deployment)
-To transition the model from a cloud GPU to local CPU edge hardware (AMD Ryzen 7 PRO 3700U), the PyTorch weights (`best.pt`) were exported to the **ONNX (Open Neural Network Exchange)** format.
+To transition the model from a cloud GPU to local CPU edge hardware, the PyTorch weights (`best.pt`) were exported to the **ONNX (Open Neural Network Exchange)** format.
 
 This optimization performed mathematical Graph Fusion, stripping out the heavy Python training dependencies and compiling the neural network into static machine code optimized for `onnxruntime` execution.
 
@@ -85,14 +85,15 @@ Clone the repository and install the dependencies:
 ```bash
 git clone [https://github.com/YourUsername/Touchless-HCI-Hand-Tracker.git](https://github.com/YourUsername/Touchless-HCI-Hand-Tracker.git)
 cd Touchless-HCI-Hand-Tracker
-pip install -r requirements.txt
-
+pip install -r requirements.txt`
+```
 *(Ensure `onnx`, `onnxruntime`, `fastapi`, `uvicorn`, `python-multipart`, and `ultralytics` are installed).*
 
 ### 2. Run the Live API Server
 Launch the FastAPI backend locally:
 ```bash
 uvicorn api:app --reload
+```
 
 ### 3. Access the Interface
 Open your browser and navigate to:
