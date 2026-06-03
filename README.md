@@ -76,7 +76,6 @@ To prove the model's viability as a decoupled software product, the inference en
 
 ---
 
-````markdown id="t0nzlv"
 ## 🚀 Quick Start Guide
 
 ### 1. Installation
