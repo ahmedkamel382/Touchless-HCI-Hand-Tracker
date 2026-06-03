@@ -64,8 +64,6 @@ Even in challenging poses (hands occluding the face), the optimized model retain
 ![Annotated Hand Detection](v3_results/7a17cbca-8f80-4a0f-b800-139fd2cb987e-rgb_0000_png_jpg.rf.556de41ec1795d820d235320816be8d4.jpg)
 ![Annotated Hand Detection](v3_results/6_jpg.rf.3e98bd8870f4af355e16bc34964d7741.jpg)
 
-
-
 ---
 
 ## 🌐 FastAPI Backend Deployment
@@ -78,37 +76,94 @@ To prove the model's viability as a decoupled software product, the inference en
 
 ---
 
+````markdown id="t0nzlv"
 ## 🚀 Quick Start Guide
 
 ### 1. Installation
-Clone the repository and install the dependencies:
-```bash
-git clone [https://github.com/YourUsername/Touchless-HCI-Hand-Tracker.git](https://github.com/YourUsername/Touchless-HCI-Hand-Tracker.git)
-cd Touchless-HCI-Hand-Tracker
-pip install -r requirements.txt`
-```
-*(Ensure `onnx`, `onnxruntime`, `fastapi`, `uvicorn`, `python-multipart`, and `ultralytics` are installed).*
 
-### 2. Run the Live API Server
-Launch the FastAPI backend locally:
+Clone the repository and install the dependencies:
+
+```bash
+git clone https://github.com/ahmedkamel382/Touchless-HCI-Hand-Tracker.git
+cd Touchless-HCI-Hand-Tracker
+pip install -r requirements.txt
+```
+
+> Ensure `onnx`, `onnxruntime`, `fastapi`, `uvicorn`, `python-multipart`, and `ultralytics` are installed before running the project.
+
+---
+
+## 2. Run the Live API Server (Terminal 1)
+
+Open your first terminal window and launch the FastAPI backend locally:
+
 ```bash
 uvicorn api:app --reload
 ```
 
-### 3. Access the Interface
-Open your browser and navigate to:
-`http://127.0.0.1:8000/docs`
+This will start the server on local port `8000`.
 
-From the Swagger UI, you can directly upload test images to the `/predict_and_draw/` endpoint to test specific frames, or hit the `/webcam` endpoint in your browser to see the live real-time hand tracking in action.
+---
 
-*(Note: For external access across devices, tunnel the local port using `ngrok http 8000`).*
+## 3. Expose the API to the Internet via Ngrok (Terminal 2)
+
+To allow external devices to access the API remotely, create a secure tunnel using Ngrok.
+
+Open a **second separate terminal window** and configure Ngrok.
+
+### Authenticate Your Ngrok Account
+
+You can find your authentication token on the Ngrok Dashboard.
+
+```bash
+ngrok config add-authtoken $YOUR_AUTHTOKEN
+```
+
+### Start the Tunnel
+
+Expose the same port used by the Uvicorn API (`8000`):
+
+```bash
+ngrok http 8000
+```
+
+Ngrok will generate a public URL similar to:
+
+```text
+https://1a2b-3c4d.ngrok-free.app
+```
+
+---
+
+## 4. Access the Interface
+
+Open your browser and navigate to the interface.
+
+### Local Access
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+### External Access
+
+```text
+https://<your-ngrok-url>.ngrok-free.app/docs
+```
+
+Using the Swagger UI, you can:
+
+* Upload test images directly to the `/predict_and_draw/` endpoint.
+* Access the `/webcam` endpoint to view real-time live hand tracking in your browser.
 
 ---
 
 ## 👥 Project Team
+
 * Ahmed Khalid
 * Omar A. El Nasser
 * Bassel Adel
 * Karim Hossam
 * Mohamed Haitham
 * Omar Bekhiet
+````
