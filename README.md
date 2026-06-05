@@ -165,4 +165,3 @@ Using the Swagger UI, you can:
 * Karim Hossam
 * Mohamed Haitham
 * Omar Bekhiet
-````
