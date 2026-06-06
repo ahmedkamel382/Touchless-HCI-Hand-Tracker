@@ -8,73 +8,10 @@ from ultralytics import YOLO
 
 # --- API and Model Initialization ---
 
-# Initialize the FastAPI server instance
 app = FastAPI(title="Touchless HCI Hand Tracker API", version="1.0")
 
-# Load the optimized ONNX model into memory exactly once when the server starts.
-# This prevents the system from having to reload the heavy weights on every individual request.
 print("Loading ONNX model into API memory...")
 model = YOLO('best.onnx', task='detect')
-
-
-# --- Streaming Helper Function ---
-
-def generate_webcam_frames(conf: float = 0.5):
-    """
-    Continuously captures frames from the local webcam, runs the YOLO inference,
-    and yields an MJPEG (Motion JPEG) stream to be displayed in the browser.
-    """
-    # Initialize standard webcam capture (device 0 is usually the built-in webcam)
-    cap = cv2.VideoCapture(0)
-
-    # Check if the camera hardware is successfully accessible
-    if not cap.isOpened():
-        raise RuntimeError("Cannot open webcam")
-
-    # Lock the resolution to 640x480. Lower resolution ensures higher FPS
-    # and stable stream latency for real-time tracking on edge hardware.
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-
-    try:
-        while True:
-            # Read a single frame from the camera
-            success, frame = cap.read()
-            if not success:
-                continue  # Skip this loop iteration if the frame drops
-
-            # Run the frame through the ONNX YOLO model.
-            # conf=0.5 means it only accepts detections with a 50%+ confidence score.
-            results = model(frame, conf=conf, verbose=False)
-
-            # The .plot() method automatically draws the YOLO bounding boxes onto the frame
-            annotated_frame = results[0].plot()
-
-            # Count how many hands are currently on the screen
-            num_hands = len(results[0].boxes)
-
-            # Draw the active hand counter in the top-left corner
-            cv2.putText(
-                annotated_frame,
-                f"Hands Detected: {num_hands}",
-                (10, 35),  # (x, y) coordinates for the text
-                cv2.FONT_HERSHEY_SIMPLEX,  # Font style
-                1.1,  # Font scale
-                (0, 255, 0),  # Color in BGR format (Green)
-                3  # Line thickness
-            )
-
-            # Compress the raw numpy array into a JPEG format for web transmission
-            _, buffer = cv2.imencode('.jpg', annotated_frame)
-
-            # Yield the frame in the multipart format required by web browsers for live video streaming
-            yield (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n"
-            )
-    finally:
-        # Always release the camera hardware when the stream stops to prevent system freezing
-        cap.release()
 
 
 # --- REST API Endpoints ---
@@ -88,38 +25,27 @@ def home():
 @app.post("/predict/")
 async def predict_hand(file: UploadFile = File(...)):
     """
-    Receives an uploaded image, runs YOLO, and returns the raw bounding box
-    coordinates in JSON format. Ideal for machine-to-machine communication (like AR/VR apps).
+    Receives an uploaded image from the browser, runs YOLO, and returns
+    the raw bounding box coordinates in JSON format.
     """
     try:
-        # Read the uploaded image file into raw memory bytes
         image_bytes = await file.read()
-
-        # Convert the raw bytes into a numpy array, then decode it into an OpenCV color image
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-        # Safety check to ensure the uploaded file was actually a valid image
         if img is None:
             return JSONResponse(status_code=400, content={"error": "Invalid image file format."})
 
-        # Run inference (verbose=False keeps the terminal clean)
         results = model(img, verbose=False)
         boxes = results[0].boxes
 
-        # Format the output data
         predictions = []
         for box in boxes:
-            # Extract spatial coordinates [x_min, y_min, x_max, y_max]
             coords = box.xyxy[0].tolist()
-
-            # Extract the confidence score (e.g., 0.95)
             conf = box.conf[0].item()
-
-            # Append to our JSON dictionary
             predictions.append({
                 "class": "hand",
-                "confidence": round(conf * 100, 2),  # Convert to percentage
+                "confidence": round(conf * 100, 2),
                 "bounding_box": {
                     "x1": int(coords[0]),
                     "y1": int(coords[1]),
@@ -137,11 +63,9 @@ async def predict_hand(file: UploadFile = File(...)):
 @app.post("/predict_and_draw/")
 async def predict_and_draw(file: UploadFile = File(...)):
     """
-    Receives an uploaded image, physically draws the bounding boxes directly on it,
-    and sends the modified JPEG file back to the user. Useful for visual debugging in Swagger UI.
+    Standard visual debugging endpoint (useful for Swagger UI testing).
     """
     try:
-        # Decode the uploaded image
         image_bytes = await file.read()
         np_arr = np.frombuffer(image_bytes, np.uint8)
         img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
@@ -149,67 +73,168 @@ async def predict_and_draw(file: UploadFile = File(...)):
         if img is None:
             return JSONResponse(status_code=400, content={"error": "Invalid image file format."})
 
-        # Run inference and immediately draw the boxes on the image array
         results = model(img, verbose=False)
         annotated_img = results[0].plot()
 
-        # Encode the drawn image back into JPEG format
         _, encoded_img = cv2.imencode('.jpg', annotated_img)
-
-        # Stream the file back to the client as an image file
         return StreamingResponse(io.BytesIO(encoded_img.tobytes()), media_type="image/jpeg")
 
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+# --- Client-Side Web Interface ---
+
 @app.get("/webcam", response_class=HTMLResponse)
 def webcam_interface():
     """
-    Serves a lightweight HTML webpage with a UI button that triggers the live stream.
+    Serves the advanced Frontend HTML/JS application.
+    It accesses the viewer's local webcam and communicates with the /predict/ endpoint.
     """
-    button_html = """
+    html_content = """
     <!DOCTYPE html>
     <html>
     <head>
+        <title>Live Hand Tracking (Client-Side)</title>
         <style>
-            .stream-btn {
-                background-color: #00ff88;
-                color: #111;
-                font-size: 16px;
-                font-weight: bold;
-                padding: 12px 24px;
-                border: none;
-                border-radius: 6px;
-                cursor: pointer;
-                text-decoration: none;
-                display: inline-block;
-                transition: background 0.3s ease;
-                font-family: sans-serif;
-            }
-            .stream-btn:hover { background-color: #00cc6e; }
-        </style>
+    body { 
+        background-color: #111; 
+        color: white; 
+        font-family: sans-serif; 
+        text-align: center; 
+    }
+    #video-container { 
+        position: relative; 
+        display: inline-block; 
+        margin-top: 20px; 
+    }
+    /* ONLY mirror the video so it acts like a mirror */
+    video { 
+        border-radius: 8px; 
+        transform: scaleX(-1); 
+        background: #000;
+    }
+    /* Keep the canvas normal so text renders left-to-right */
+    canvas { 
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        border-radius: 8px;
+    }
+    #status { margin-top: 15px; color: #00ff88; font-weight: bold; }
+</style>
     </head>
     <body>
-        <p style="color: #666; font-family: sans-serif;">Click the button below to open the live stream in a new window:</p>
-        <a href="/webcam/stream" target="_blank" class="stream-btn">🖐 Open Live Stream</a>
+        <h2>🖐 Remote Touchless HCI Tracking</h2>
+        <p>This securely uses your device's camera and streams frames to the Edge AI server.</p>
+
+        <div id="video-container">
+            <video id="video" width="640" height="480" autoplay playsinline></video>
+            <canvas id="canvas" width="640" height="480"></canvas>
+        </div>
+
+        <p id="status">Waiting for camera permissions...</p>
+
+        <script>
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            const status = document.getElementById('status');
+
+            // A hidden canvas just to take "photos" of the video feed
+            const captureCanvas = document.createElement('canvas');
+            captureCanvas.width = 640;
+            captureCanvas.height = 480;
+            const captureCtx = captureCanvas.getContext('2d');
+
+            // 1. Turn on the Viewer's Camera
+            async function startCamera() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                    video.srcObject = stream;
+                    status.innerText = "Camera active. Streaming data to AI Server...";
+
+                    // Start the infinite processing loop once the video is playing
+                    video.onloadeddata = () => processFrame();
+                } catch (err) {
+                    status.innerText = "Error accessing camera. Please allow permissions.";
+                    console.error(err);
+                }
+            }
+
+            // 2. The Main AI Loop
+            function processFrame() {
+                if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+                    requestAnimationFrame(processFrame);
+                    return;
+                }
+
+                // Copy the current video frame to the hidden canvas
+                captureCtx.drawImage(video, 0, 0, 640, 480);
+
+                // Compress the image to a tiny JPEG to save network bandwidth
+                captureCanvas.toBlob(async (blob) => {
+                    const formData = new FormData();
+                    formData.append('file', blob, 'frame.jpg');
+
+                    try {
+                        // Send the image to your FastAPI Python server
+                        const response = await fetch('/predict/', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        const data = await response.json();
+
+                        // Draw the JSON coordinates on the screen
+                        drawBoxes(data.predictions);
+                    } catch (err) {
+                        console.error("Inference Error:", err);
+                    }
+
+                    // Instantly trigger the next frame
+                    requestAnimationFrame(processFrame);
+
+                }, 'image/jpeg', 0.6); // 60% JPEG quality is the sweet spot for YOLO speed
+            }
+
+            // 3. Draw the Bounding Boxes
+function drawBoxes(predictions) {
+    // Clear the previous frame's boxes
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Setup the styling
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#00ff88";
+    ctx.fillStyle = "#00ff88";
+    ctx.font = "bold 18px sans-serif";
+
+    if (predictions && predictions.length > 0) {
+        predictions.forEach(p => {
+            const box = p.bounding_box;
+            const width = box.x2 - box.x1;
+            const height = box.y2 - box.y1;
+            
+            // MATH FIX: Flip the X coordinate so the box aligns with the CSS-flipped video
+            // We subtract the right edge (x2) from the canvas width to find the new left edge
+            const mirroredX = canvas.width - box.x2;
+            
+            // Draw the rectangle using the mirrored X
+            ctx.strokeRect(mirroredX, box.y1, width, height);
+            
+            // Draw the text background and label normally (left-to-right)
+            ctx.fillRect(mirroredX, box.y1 - 25, 120, 25);
+            ctx.fillStyle = "#111"; // Make text dark for contrast
+            ctx.fillText(`Hand ${p.confidence}%`, mirroredX + 5, box.y1 - 7);
+            ctx.fillStyle = "#00ff88"; // Reset for the next box
+        });
+    }
+}
+
+            // Initialize
+            startCamera();
+        </script>
     </body>
     </html>
     """
-    return HTMLResponse(content=button_html)
-
-
-@app.get("/webcam/stream", include_in_schema=False)
-def webcam_stream():
-    """
-    The actual endpoint that handles the MJPEG video feed.
-    'include_in_schema=False' hides this from the /docs Swagger UI to prevent clutter.
-    """
-    try:
-        # Stream the continuous frame generator back to the browser
-        return StreamingResponse(
-            generate_webcam_frames(conf=0.5),
-            media_type="multipart/x-mixed-replace; boundary=frame"
-        )
-    except RuntimeError as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+    return HTMLResponse(content=html_content)
